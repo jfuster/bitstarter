@@ -23,10 +23,12 @@ References:
 */
 
 var fs = require('fs');
+var rest = require('restler');
 var program = require('commander');
 var cheerio = require('cheerio');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var heroku = "heroku.html";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -62,14 +64,38 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var urlToFile = function (url) {
+    rest.get(url).on('complete', function(data) {
+        fs.writeFileSync(heroku, data);
+        console.log("Created " + heroku + " from " + url + "\n");
+        jsonToConsole(heroku, program.checks);
+    });
+}
+
+var jsonToConsole = function (htmlfile, checksfile) {
+    console.log("Checking HTML tags in: " + htmlfile + "\n");
+    var checkJson = checkHtmlFile(htmlfile, checksfile);
+    var outJson = JSON.stringify(checkJson, null, 4);
+    return console.log(outJson);
+}
+
 if(require.main == module) {
     program
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists))
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
+        .option('-u, --url <url>', 'URL to check')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+        
+        /* Checking the flags */
+        if (program.file && program.url) {
+            console.log('Please provide just a file or a url');
+        } else if (!program.file && !program.url) {
+            console.log('Please provide either a file or a url');
+        } else if (program.file) {
+            jsonToConsole(program.file, program.checks);
+        } else if (program.url) {
+            urlToFile(program.url);
+        }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
